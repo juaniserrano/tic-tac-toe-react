@@ -1,60 +1,34 @@
 import './App.css';
 import { useState } from 'react';
+import conffeti from 'canvas-confetti';
 
-const Turns = {
-  X: 'X',
-  O: 'O',
-};
-
-const Square = ({ children, isSelected, updateBoard, index }) => {
-  const className = `square ${isSelected ? 'is-selected' : ''}`;
-
-  const handleClick = () => {
-    updateBoard(index);
-  };
-
-  return (
-    <div onClick={handleClick} className={className}>
-      {children}
-    </div>
-  );
-};
-
-const WINNER_COMBOS = [
-  [0, 1, 2],
-  [3, 4, 5],
-  [6, 7, 8],
-  [0, 3, 6],
-  [1, 4, 7],
-  [2, 5, 8],
-  [0, 4, 8],
-  [2, 4, 6],
-];
+import { Square } from './components/Square.jsx';
+import { Turns } from './constants.js';
+import { checkWinner, checkEndGame } from './logic/board.js';
+import { WinnerModal } from './components/WinnerModal.jsx';
 
 function App() {
-  const [board, setBoard] = useState(Array(9).fill(null));
-  const [turn, setTurn] = useState(Turns.X);
+  const [board, setBoard] = useState(() => {
+    const boardFromStorage = localStorage.getItem('board');
+    return boardFromStorage
+      ? JSON.parse(boardFromStorage)
+      : Array(9).fill(null);
+  });
+  const [turn, setTurn] = useState(() => {
+    const turnFromStorage = localStorage.getItem('turn');
+    return turnFromStorage ? turnFromStorage : Turns.X;
+  });
   const [winner, setWinner] = useState(null); //null es que no hay ganador, false es que hay empate
 
-  const checkWinner = (boardToCheck) => {
-    for (const combo of WINNER_COMBOS) {
-      const [a, b, c] = combo;
-      if (
-        boardToCheck[a] &&
-        boardToCheck[a] === boardToCheck[b] &&
-        boardToCheck[a] === boardToCheck[c]
-      ) {
-        return boardToCheck[a]; // x u o
-      }
-    }
-    return null;
-  };
+  const resetGame = () => {
+    setBoard(Array(9).fill(null));
+    setTurn(Turns.X);
+    setWinner(null);
 
-  const resetGame = () => [
-    setBoard(Array(9).fill(null)),
-    setTurn(Turns.X),
-    setWinner(null),
-  ];
+    //Limpiamos el local storage
+    localStorage.removeItem('board');
+    localStorage.removeItem('turn');
+  };
 
   const updateBoard = (index) => {
     if (board[index] || winner) return;
@@ -64,16 +38,23 @@ function App() {
 
     const newTurn = turn === Turns.X ? Turns.O : Turns.X;
     setTurn(newTurn);
+    //Guardado de partida en el local storage:
+    localStorage.setItem('board', JSON.stringify(newBoard));
+    localStorage.setItem('turn', newTurn);
     //Revisamos si tenemos un ganador
     const newWinner = checkWinner(newBoard);
     if (newWinner) {
       setWinner(newWinner); //La actualizacion del estado es asincrona, para solucionar esto se puede usar un callback en caso de querer mostrar un mensaje de felicitaciones al ganador mediante un alert
+      conffeti();
+    } else if (checkEndGame(newBoard)) {
+      setWinner(false);
     }
   };
 
   return (
     <main className="board">
       <h1>Tic Tac Toe</h1>
+      <button onClick={resetGame}>Reiniciar el juego 🔁</button>
       <section className="game">
         {board.map((_, index) => {
           return (
@@ -88,19 +69,7 @@ function App() {
         <Square isSelected={turn === Turns.O}>{Turns.O}</Square>
       </section>
 
-      {winner !== null && (
-        <section className="winner">
-          <div className="text">
-            <h2>{winner === false ? 'Empate' : 'Gano el jugador: '}</h2>
-            <header className="win">
-              {winner && <Square>{winner}</Square>}
-            </header>
-            <footer>
-              <button onClick={resetGame}>Jugar de nuevo 🔁</button>
-            </footer>
-          </div>
-        </section>
-      )}
+      <WinnerModal winner={winner} resetGame={resetGame} />
     </main>
   );
 }
